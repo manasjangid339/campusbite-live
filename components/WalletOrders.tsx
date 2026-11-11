@@ -69,9 +69,9 @@ export default function WalletOrders({ refreshKey }: { refreshKey: number }) {
         <ul className="mt-2 divide-y divide-slate-100">
           {data?.orders.map((order) => (
             <li key={order.id} className="py-3 text-sm">
-              <div className="flex items-center justify-between gap-2">
-                <p className="font-medium">Order #{order.id} · {order.pickup_time}</p>
-                <span className={`rounded-full px-2 py-0.5 text-xs ${statusStyles[order.status] ?? "bg-slate-100 text-slate-700"}`}>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="min-w-0 font-medium">Order #{order.id} · {order.pickup_time}</p>
+                <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs ${statusStyles[order.status] ?? "bg-slate-100 text-slate-700"}`}>
                   {order.status}
                 </span>
               </div>

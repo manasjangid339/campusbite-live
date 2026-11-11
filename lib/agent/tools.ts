@@ -3,6 +3,54 @@ import { z } from "zod";
 import { defineTool, type AgentTool } from "./defineTool";
 import { getSupabase } from "../supabase";
 import { CURRENT_STUDENT_ID, formatSlot, oneRelation } from "../campusbite";
+import { todayInIndia } from "../dates";
+
+const DAILY_SPENDING_LIMIT = 200;
+
+type OrderLineInput = { menu_item_id: number; quantity: number };
+
+async function placeOrderWithChecks(items: OrderLineInput[], slotId: number) {
+  if (items.reduce((total, item) => total + item.quantity, 0) > 5) {
+    throw new Error("Maximum 5 items per order.");
+  }
+
+  const supabase = getSupabase();
+  const itemIds = [...new Set(items.map((item) => item.menu_item_id))];
+  const [ordersRes, menuRes] = await Promise.all([
+    supabase
+      .from("orders")
+      .select("total")
+      .eq("student_id", CURRENT_STUDENT_ID)
+      .neq("status", "cancelled")
+      .gte("created_at", `${todayInIndia()}T00:00:00+05:30`),
+    supabase.from("menu_items").select("id, price").in("id", itemIds),
+  ]);
+  if (ordersRes.error) throw new Error(ordersRes.error.message);
+  if (menuRes.error) throw new Error(menuRes.error.message);
+
+  const priceById = new Map(menuRes.data.map((item) => [item.id, item.price]));
+  const newOrderTotal = items.reduce((sum, item) => {
+    const price = priceById.get(item.menu_item_id);
+    if (price === undefined) throw new Error(`Menu item ${item.menu_item_id} not found.`);
+    return sum + price * item.quantity;
+  }, 0);
+
+  const spentToday = ordersRes.data.reduce((sum, order) => sum + order.total, 0);
+  if (spentToday + newOrderTotal > DAILY_SPENDING_LIMIT) {
+    const remaining = Math.max(0, DAILY_SPENDING_LIMIT - spentToday);
+    throw new Error(
+      `Daily limit of Rs ${DAILY_SPENDING_LIMIT} reached. You have Rs ${remaining} left to spend today.`
+    );
+  }
+
+  const { data, error } = await supabase.rpc("place_order", {
+    p_student_id: CURRENT_STUDENT_ID,
+    p_slot_id: slotId,
+    p_items: items,
+  });
+  if (error) throw new Error(error.message);
+  return data;
+}
 
 const getMenu = defineTool({
   name: "getMenu",
@@ -103,17 +151,43 @@ const placeOrder = defineTool({
     ).min(1).max(5).describe("Items to order; maximum five total items"),
     slot_id: z.number().int().positive().describe("Id of an available pickup slot"),
   }),
-  run: async ({ items, slot_id }) => {
-    if (items.reduce((total, item) => total + item.quantity, 0) > 5) {
-      throw new Error("Maximum 5 items per order.");
+  run: async ({ items, slot_id }) => placeOrderWithChecks(items, slot_id),
+});
+
+const reorderLast = defineTool({
+  name: "reorderLast",
+  description: "Use this when the student asks to order the same as last time.",
+  writes: true,
+  schema: z.object({}),
+  run: async () => {
+    const supabase = getSupabase();
+    const [lastOrderRes, slotsRes] = await Promise.all([
+      supabase
+        .from("orders")
+        .select("id, order_items(menu_item_id, quantity)")
+        .eq("student_id", CURRENT_STUDENT_ID)
+        .neq("status", "cancelled")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+      supabase.from("pickup_slots").select("id, slot_time, capacity, booked").order("slot_time"),
+    ]);
+    if (lastOrderRes.error) throw new Error(lastOrderRes.error.message);
+    if (slotsRes.error) throw new Error(slotsRes.error.message);
+
+    const lastOrder = lastOrderRes.data;
+    if (!lastOrder || lastOrder.order_items.length === 0) {
+      throw new Error("No previous order found to reorder.");
     }
-    const { data, error } = await getSupabase().rpc("place_order", {
-      p_student_id: CURRENT_STUDENT_ID,
-      p_slot_id: slot_id,
-      p_items: items,
-    });
-    if (error) throw new Error(error.message);
-    return data;
+
+    const earliestSlot = slotsRes.data.find((slot) => slot.capacity - slot.booked > 0);
+    if (!earliestSlot) throw new Error("No free pickup slots left today.");
+
+    const items = lastOrder.order_items.map((item) => ({
+      menu_item_id: item.menu_item_id,
+      quantity: item.quantity,
+    }));
+    return placeOrderWithChecks(items, earliestSlot.id);
   },
 });
 
@@ -140,5 +214,6 @@ export const tools: AgentTool[] = [
   getPickupSlots,
   getMyOrders,
   placeOrder,
+  reorderLast,
   cancelOrder,
 ];

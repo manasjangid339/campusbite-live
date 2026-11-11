@@ -52,7 +52,7 @@ export default function AgentChat({ onDataChanged }: { onDataChanged?: () => voi
   }
 
   return (
-    <div className="flex h-[70vh] flex-col rounded-xl border border-slate-200 bg-white">
+    <div className="flex h-[65vh] min-h-[420px] flex-col rounded-xl border border-slate-200 bg-white sm:h-[70vh]">
       <div className="border-b border-slate-200 px-4 py-3">
         <h2 className="font-semibold">Agent</h2>
         <p className="text-xs text-slate-500">Ask in plain English. You can see every tool the agent uses.</p>
@@ -66,7 +66,7 @@ export default function AgentChat({ onDataChanged }: { onDataChanged?: () => voi
               <button
                 key={p}
                 onClick={() => send(p)}
-                className="block w-full rounded-lg border border-slate-200 px-3 py-2 text-left text-sm hover:bg-slate-50"
+                className="block w-full rounded-lg border border-slate-200 px-3 py-2.5 text-left text-sm hover:bg-slate-50"
               >
                 {p}
               </button>
@@ -111,12 +111,12 @@ export default function AgentChat({ onDataChanged }: { onDataChanged?: () => voi
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Type your request..."
-          className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
+          className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-slate-500"
         />
         <button
           type="submit"
           disabled={loading || !input.trim()}
-          className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50"
+          className="min-h-[40px] shrink-0 rounded-lg bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50"
         >
           Send
         </button>

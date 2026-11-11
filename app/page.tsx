@@ -16,16 +16,16 @@ export default function HomePage() {
 
   return (
     <main className="mx-auto max-w-6xl p-4 md:p-6">
-      <header className="mb-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">CampusBite · SRM canteen ordering agent</h1>
+      <header className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-lg font-semibold sm:text-xl">CampusBite · SRM canteen ordering agent</h1>
           <p className="text-sm text-slate-500">Your canteen orders, made simple.</p>
         </div>
-        <div className="flex items-center gap-4">
-          <Link href="/kitchen" className="text-sm font-medium text-emerald-700 hover:text-emerald-900">
+        <div className="flex flex-wrap items-center gap-4">
+          <Link href="/kitchen" className="py-1.5 text-sm font-medium text-emerald-700 hover:text-emerald-900">
             Open kitchen screen
           </Link>
-          <button onClick={logout} className="text-sm text-slate-500 hover:text-slate-900">
+          <button onClick={logout} className="py-1.5 text-sm text-slate-500 hover:text-slate-900">
             Log out
           </button>
         </div>

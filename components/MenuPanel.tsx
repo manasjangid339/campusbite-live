@@ -64,7 +64,7 @@ export default function MenuPanel({ refreshKey }: { refreshKey: number }) {
               <h3 className="mb-1 text-sm font-semibold text-slate-700">{category.label}</h3>
               <ul className="divide-y divide-slate-100">
                 {categoryItems.map((item) => (
-                  <li key={item.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+                  <li key={item.id} className="flex items-start justify-between gap-3 py-2.5 text-sm">
                     <div className="min-w-0">
                       <p className="flex items-center gap-2 font-medium">
                         <span

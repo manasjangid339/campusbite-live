@@ -12,6 +12,13 @@ type KitchenOrder = {
   items: { name: string; quantity: number }[];
 };
 
+type MenuStockItem = {
+  id: number;
+  name: string;
+  category: string;
+  stock: number;
+};
+
 const columns: { status: KitchenOrder["status"]; title: string; action?: string }[] = [
   { status: "placed", title: "New orders", action: "Start preparing" },
   { status: "preparing", title: "Preparing", action: "Mark ready" },
@@ -26,15 +33,22 @@ const nextStatus: Record<KitchenOrder["status"], "preparing" | "ready" | "collec
 
 export default function KitchenPage() {
   const [orders, setOrders] = useState<KitchenOrder[]>([]);
+  const [menuItems, setMenuItems] = useState<MenuStockItem[]>([]);
   const [error, setError] = useState("");
   const [busyOrder, setBusyOrder] = useState<number | null>(null);
+  const [busyStockId, setBusyStockId] = useState<number | null>(null);
 
   const loadOrders = useCallback(async () => {
     try {
-      const response = await fetch("/api/kitchen", { cache: "no-store" });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error ?? "Could not load kitchen orders");
-      setOrders(data.orders);
+      const [ordersRes, menuRes] = await Promise.all([
+        fetch("/api/kitchen", { cache: "no-store" }),
+        fetch("/api/menu", { cache: "no-store" }),
+      ]);
+      const [ordersData, menuData] = await Promise.all([ordersRes.json(), menuRes.json()]);
+      if (!ordersRes.ok) throw new Error(ordersData.error ?? "Could not load kitchen orders");
+      if (!menuRes.ok) throw new Error(menuData.error ?? "Could not load menu stock");
+      setOrders(ordersData.orders);
+      setMenuItems(menuData.items);
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load kitchen orders");
@@ -66,6 +80,25 @@ export default function KitchenPage() {
     }
   }
 
+  async function markSoldOut(menuItemId: number) {
+    setBusyStockId(menuItemId);
+    setError("");
+    try {
+      const response = await fetch("/api/kitchen/stock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ menu_item_id: menuItemId }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "Could not update stock");
+      await loadOrders();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update stock");
+    } finally {
+      setBusyStockId(null);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-slate-950 p-4 text-slate-100 md:p-8">
       <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
@@ -78,7 +111,7 @@ export default function KitchenPage() {
             <span className="h-2 w-2 rounded-full bg-emerald-400" />
             Live
           </span>
-          <Link href="/" className="text-sm text-slate-300 hover:text-white">Student screen</Link>
+          <Link href="/" className="py-1.5 text-sm text-slate-300 hover:text-white">Student screen</Link>
         </div>
       </header>
 
@@ -99,24 +132,24 @@ export default function KitchenPage() {
                 {columnOrders.map((order) => (
                   <article key={order.id} className="rounded-lg border border-slate-800 bg-slate-950 p-4">
                     <div className="flex items-start justify-between gap-3">
-                      <div>
+                      <div className="min-w-0">
                         <h3 className="font-semibold">Order #{order.id}</h3>
-                        <p className="mt-1 text-sm text-slate-400">{order.student_name}</p>
+                        <p className="mt-1 truncate text-sm text-slate-400">{order.student_name}</p>
                       </div>
-                      <span className="rounded bg-slate-800 px-2 py-1 text-sm">{order.pickup_time}</span>
+                      <span className="shrink-0 rounded bg-slate-800 px-2 py-1 text-sm">{order.pickup_time}</span>
                     </div>
                     <ul className="my-4 space-y-1 text-sm text-slate-300">
                       {order.items.map((item, index) => (
                         <li key={`${item.name}-${index}`}>{item.quantity} × {item.name}</li>
                       ))}
                     </ul>
-                    <div className="flex items-center justify-between gap-3 border-t border-slate-800 pt-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-800 pt-3">
                       <span className="text-sm font-medium">Rs {order.total}</span>
                       {column.action && (
                         <button
                           onClick={() => void advanceOrder(order)}
                           disabled={busyOrder === order.id}
-                          className="rounded-lg bg-emerald-500 px-3 py-2 text-sm font-medium text-slate-950 hover:bg-emerald-400 disabled:opacity-50"
+                          className="min-h-[40px] rounded-lg bg-emerald-500 px-3 py-2 text-sm font-medium text-slate-950 hover:bg-emerald-400 disabled:opacity-50"
                         >
                           {busyOrder === order.id ? "Updating..." : column.action}
                         </button>
@@ -130,6 +163,35 @@ export default function KitchenPage() {
           );
         })}
       </div>
+
+      <section className="mt-8 rounded-xl bg-slate-900 p-4">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="font-semibold">Menu stock</h2>
+          <span className="text-xs text-slate-400">{menuItems.length} items</span>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {menuItems.map((item) => (
+            <div
+              key={item.id}
+              className="flex items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-950 p-3"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{item.name}</p>
+                <p className={`text-xs ${item.stock === 0 ? "text-rose-400" : "text-slate-400"}`}>
+                  {item.stock === 0 ? "Sold out" : `${item.stock} in stock`}
+                </p>
+              </div>
+              <button
+                onClick={() => void markSoldOut(item.id)}
+                disabled={item.stock === 0 || busyStockId === item.id}
+                className="min-h-[38px] shrink-0 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-100 hover:bg-slate-700 disabled:opacity-40"
+              >
+                {item.stock === 0 ? "Sold out" : busyStockId === item.id ? "Updating..." : "Mark sold out"}
+              </button>
+            </div>
+          ))}
+        </div>
+      </section>
     </main>
   );
 }
