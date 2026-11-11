@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
 
-// YOUR JOB: change the title and description for your app.
 export const metadata: Metadata = {
   title: "CampusBite Live",
   description: "SRM campus canteen ordering agent",

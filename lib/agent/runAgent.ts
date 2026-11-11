@@ -1,5 +1,5 @@
 import "server-only";
-import type { Content, Part } from "@google/genai";
+import { ThinkingLevel, type Content, type Part } from "@google/genai";
 import { getGemini } from "../gemini";
 import { GEMINI_MODEL } from "../env";
 import type { ChatMessage } from "../schemas";
@@ -9,7 +9,7 @@ import { buildSystemPrompt } from "./systemPrompt";
 import type { AgentResult, AgentStep } from "./types";
 
 /** Stops the agent from looping forever and using up your Gemini quota. */
-const MAX_ROUNDS = 5;
+const MAX_ROUNDS = 8;
 
 /**
  * THE AGENT LOOP
@@ -36,6 +36,10 @@ export async function runAgent(messages: ChatMessage[]): Promise<AgentResult> {
         systemInstruction: buildSystemPrompt(),
         tools: [{ functionDeclarations }],
         temperature: 0.2,
+        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+        httpOptions: {
+          retryOptions: { attempts: 2, initialDelay: 0.5, maxDelay: 2 },
+        },
       },
     });
 
